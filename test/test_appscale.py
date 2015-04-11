@@ -3,6 +3,7 @@
 
 
 # General-purpose Python library imports
+import base64
 import json
 import os
 import re
@@ -28,6 +29,7 @@ from custom_exceptions import AppScaleException
 from custom_exceptions import AppScalefileException
 from custom_exceptions import BadConfigurationException
 from local_state import LocalState
+from parse_args import ParseArgs
 from remote_helper import RemoteHelper
 
 
@@ -62,6 +64,111 @@ class TestAppScale(unittest.TestCase):
      .and_return(flexmock(read=lambda: contents)))
 
     return mock
+
+  def test_read_appscalefile(self):
+    appscale = flexmock(AppScale())
+    builtin = flexmock(sys.modules['__builtin__'])
+    builtin.should_call('open')
+    appscale_yaml = {'keyname': 'boo'}
+    appscale.should_receive('get_appscalefile_location').\
+      and_return('AppScalefile')
+
+
+    # If AppScalefile exists, it should return the YAML as a dictionary.
+    builtin.should_receive('open').with_args('AppScalefile').\
+      and_return(flexmock(read=lambda: appscale_yaml))
+    self.assertEqual(appscale_yaml, appscale.read_appscalefile())
+
+    # If AppScalefile does not exist, it should throw an
+    # AppScalefileException.
+    builtin.should_receive('open').with_args('AppScalefile').\
+      and_raise(IOError)
+    with self.assertRaises(AppScalefileException):
+      appscale.read_appscalefile()
+
+  def test_get_nodes(self):
+    appscale = flexmock(AppScale())
+    builtin = flexmock(sys.modules['__builtin__'])
+    builtin.should_call('open')
+    nodes = {'public_ip': 'blarg'}
+    appscale_yaml = {'keyname': 'boo'}
+    appscale.should_receive('get_locations_json_file').\
+      and_return('locations.json')
+
+    # If the locations JSON file exists, it should return the locations as a
+    # dictionary.
+    builtin.should_receive('open').with_args('locations.json').\
+      and_return(flexmock(read=lambda: json.dumps(nodes)))
+    self.assertEqual(nodes, appscale.get_nodes(appscale_yaml['keyname']))
+
+    # If the locations JSON file does not exist, it should throw an
+    # AppScaleException.
+    builtin.should_receive('open').with_args('locations.json').\
+      and_raise(IOError)
+    with self.assertRaises(AppScaleException):
+      appscale.get_nodes(appscale_yaml['keyname'])
+
+  def test_init(self):
+    appscale = flexmock(AppScale())
+    appscale.should_receive('get_appscalefile_location').\
+      and_return('AppScalefile')
+    flexmock(os.path)
+    flexmock(shutil)
+
+    # If the AppScalefile already exists, it should throw an
+    # AppScalefileException.
+    os.path.should_receive('exists').with_args('AppScalefile').\
+      and_return(True)
+    with self.assertRaises(AppScalefileException):
+      appscale.init('cloud')
+
+    os.path.should_receive('exists').with_args('AppScalefile').and_return(False)
+
+    # If the function is called with an unrecognized argument, it should throw
+    # a BadConfigurationException.
+    with self.assertRaises(BadConfigurationException):
+      appscale.init('boo')
+
+    # If the AppScalefile does not already exist and there's a template for
+    # the specified environment, the function should return successfully.
+    shutil.should_receive('copy').\
+      with_args(appscale.TEMPLATE_CLOUD_APPSCALEFILE, 'AppScalefile').\
+      and_return()
+    appscale.init('cloud')
+
+  def test_up(self):
+    appscale = flexmock(AppScale())
+
+    # Test 'appscale up' with a cluster-based AppScalefile.
+    cluster_yaml = {
+      'ips_layout': {
+        'master': 'ip1',
+        'appengine': 'ip1',
+        'database': 'ip2',
+        'zookeeper': 'ip2'
+      },
+      'keyname': 'boo',
+      'group': 'boo'
+    }
+    appscale.should_receive('read_appscalefile').\
+      and_return(yaml.dump(cluster_yaml))
+
+    flexmock(LocalState)
+    LocalState.should_receive('ensure_appscalefile_is_up_to_date').\
+      and_return(True)
+
+    appscale.should_receive('valid_ssh_key').with_args(cluster_yaml).\
+      and_return(True)
+
+    command = ['ips_layout',
+      base64.b64encode(yaml.dump(cluster_yaml['ips_layout']))]
+    options = 'mock_argparse_namespace'
+    flexmock(ParseArgs).new_instances(flexmock(args=options))
+
+    flexmock(AppScaleTools)
+    AppScaleTools.should_receive('run_instances').with_args(options).and_return()
+
+    appscale.up()
 
 
   def testUpWithMalformedClusterAppScalefile(self):

@@ -33,16 +33,13 @@ from remote_helper import RemoteHelper
 
 class TestAppScale(unittest.TestCase):
 
-
   def setUp(self):
     os.environ['EC2_ACCESS_KEY'] = ''
     os.environ['EC2_SECRET_KEY'] = ''
 
-  
   def tearDown(self):
     os.environ['EC2_ACCESS_KEY'] = ''
     os.environ['EC2_SECRET_KEY'] = ''
-
 
   def addMockForNoAppScalefile(self, appscale):
     flexmock(os)
@@ -53,7 +50,6 @@ class TestAppScale(unittest.TestCase):
     (mock.should_receive('open')
       .with_args('/boo/' + appscale.APPSCALEFILE)
       .and_raise(IOError))
-
 
   def addMockForAppScalefile(self, appscale, contents):
     flexmock(os)
@@ -66,89 +62,6 @@ class TestAppScale(unittest.TestCase):
      .and_return(flexmock(read=lambda: contents)))
 
     return mock
-
-
-  def testInitWithNoAppScalefile(self):
-    # calling 'appscale init cloud' if there's no AppScalefile in the local
-    # directory should write a new cloud config file there
-    appscale = AppScale()
-
-    flexmock(os)
-    os.should_receive('getcwd').and_return('/boo')
-
-    flexmock(os.path)
-    os.path.should_receive('exists').with_args(
-      '/boo/' + appscale.APPSCALEFILE).and_return(False)
-
-    # mock out the actual writing of the template file
-    flexmock(shutil)
-    shutil.should_receive('copy').with_args(
-      appscale.TEMPLATE_CLOUD_APPSCALEFILE, '/boo/' + appscale.APPSCALEFILE) \
-      .and_return()
-
-    appscale.init('cloud')
-
-
-  def testInitWithAppScalefile(self):
-    # calling 'appscale init cloud' if there is an AppScalefile in the local
-    # directory should throw up and die
-    appscale = AppScale()
-
-    flexmock(os)
-    os.should_receive('getcwd').and_return('/boo')
-
-    flexmock(os.path)
-    os.path.should_receive('exists').with_args('/boo/' + appscale.APPSCALEFILE).and_return(True)
-
-    self.assertRaises(AppScalefileException, appscale.init, 'cloud')
-
-
-  def testUpWithNoAppScalefile(self):
-    # calling 'appscale up' if there is no AppScalefile present
-    # should throw up and die
-    appscale = AppScale()
-    self.addMockForNoAppScalefile(appscale)
-    self.assertRaises(AppScalefileException, appscale.up)
-
-
-  def testUpWithClusterAppScalefile(self):
-    # calling 'appscale up' if there is an AppScalefile present
-    # should call appscale-run-instances with the given config
-    # params. here, we assume that the file is intended for use
-    # on a virtualized cluster
-    appscale = AppScale()
-
-    # Mock out the actual file reading itself, and slip in a YAML-dumped
-    # file
-    contents = {
-      'ips_layout': {'master': 'ip1', 'appengine': 'ip1',
-                     'database': 'ip2', 'zookeeper': 'ip2'},
-      'keyname': 'boobazblarg',
-      'group': 'boobazblarg'
-    }
-    yaml_dumped_contents = yaml.dump(contents)
-    self.addMockForAppScalefile(appscale, yaml_dumped_contents)
-
-    flexmock(os.path)
-    os.path.should_call('exists')
-    os.path.should_receive('exists').with_args(
-      '/boo/' + appscale.APPSCALEFILE).and_return(True)
-
-    # for this test, let's say that we don't have an SSH key already
-    # set up for ip1 and ip2
-    # TODO(cgb): Add in tests where we have a key for ip1 but not ip2,
-    # and the case where we have a key but it doesn't work
-    key_path = os.path.expanduser('~/.appscale/boobazblarg.key')
-    os.path.should_receive('exists').with_args(key_path).and_return(False)
-
-    # finally, mock out the actual appscale tools calls. since we're running
-    # via a cluster, this means we call add-keypair to set up SSH keys, then
-    # run-instances to start appscale
-    flexmock(AppScaleTools)
-    AppScaleTools.should_receive('add_keypair')
-    AppScaleTools.should_receive('run_instances')
-
-    appscale.up()
 
 
   def testUpWithMalformedClusterAppScalefile(self):
@@ -290,22 +203,6 @@ class TestAppScale(unittest.TestCase):
     appscale = AppScale()
     self.addMockForAppScalefile(appscale, "")
     self.assertRaises(TypeError, appscale.ssh, "boo")
-
-
-  def testSshWithNoNodesJson(self):
-    # calling 'appscale ssh' when there isn't a locations.json
-    # file should throw up and die
-    appscale = AppScale()
-
-    contents = { 'keyname' : 'boo' }
-    yaml_dumped_contents = yaml.dump(contents)
-
-    mock = self.addMockForAppScalefile(appscale, yaml_dumped_contents)
-    (mock.should_receive('open')
-      .with_args(appscale.get_locations_json_file('boo'))
-      .and_raise(IOError))
-
-    self.assertRaises(AppScaleException, appscale.ssh, 0)
 
 
   def testSshWithIndexOutOfBounds(self):

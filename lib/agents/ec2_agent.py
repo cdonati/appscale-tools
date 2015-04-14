@@ -98,7 +98,8 @@ class EC2Agent(BaseAgent):
   # recommended by Cassandra. AppScale will still run on these instance types,
   # but is likely to crash after a day or two of use (as Cassandra will attempt
   # to malloc ~800MB of memory, which will fail on these instance types).
-  DISALLOWED_INSTANCE_TYPES = ["m1.small", "c1.medium", "t1.micro"]
+  DISALLOWED_INSTANCE_TYPES = ["m1.small", "c1.medium", "t1.micro",
+    "t2.micro", "t2.small"]
 
 
   def assert_credentials_are_valid(self, parameters):

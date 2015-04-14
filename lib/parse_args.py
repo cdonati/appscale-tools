@@ -49,35 +49,48 @@ class ParseArgs(object):
   # users can spawn without having to contact Amazon, and enforce this
   # limitation.
   ALLOWED_EC2_INSTANCE_TYPES = [
-    # Standard Instances (First Generation)
-    "m1.small", "m1.medium", "m1.large", "m1.xlarge",
+    # Current Generation Instances
+    # ----------------------------
 
-    # Standard Instances (Second Generation)
+    # Burstable Performance
+    "t2.micro", "t2.small", "t2.medium",
+
+    # General Purpose
     "m3.medium", "m3.large", "m3.xlarge", "m3.2xlarge",
 
-    # High-Memory Instances
-    "m2.xlarge", "m2.2xlarge", "m2.4xlarge",
-
-    # High-CPU Compute Instances (First Generation)
-    "c1.medium", "c1.xlarge",
-
-    # High-CPU Compute Instance (Second Generation)
+    # Compute Optimized
+    "c4.large", "c4.xlarge", "c4.2xlarge", "c4.4xlarge", "c4.8xlarge",
     "c3.large", "c3.xlarge", "c3.2xlarge", "c3.4xlarge", "c3.8xlarge",
 
-    # Cluster Compute Instances
-    "cc2.8xlarge",
+    # Memory Optimized Instances
+    "r3.large", "r3.xlarge", "r3.2xlarge", "r3.4xlarge", "r3.8xlarge",
 
-    # High Memory Cluster Instances
-    "cr1.8xlarge",
+    # GPU Optimized
+    "g2.2xlarge",
 
-    # Cluster GPU Instances
+    # High I/O
+    "i2.xlarge", "i2.2xlarge", "i2.4xlarge", "i2.8xlarge",
+
+    # Dense Storage
+    "d2.xlarge", "d2.2xlarge", "d2.4xlarge", "d2.8xlarge",
+
+    # Previous Generation Instances
+    # -----------------------------
+
+    # General Purpose
+    "m1.small", "m1.medium", "m1.large", "m1.xlarge",
+
+    # Compute Optimized
+    "c1.medium", "c1.xlarge", "cc2.8xlarge",
+
+    # GPU Optimized
     "cg1.4xlarge",
 
-    # High I/O Instances
-    "hi1.4xlarge",
+    # Memory Optimized
+    "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "cr1.8xlarge",
 
-    # High Storage Instances
-    "hs1.8xlarge",
+    # Storage Optimized
+    "hi1.4xlarge", "hs1.8xlarge",
     ]
 
   # The GCE instance type that should be used if the user does not specify one.

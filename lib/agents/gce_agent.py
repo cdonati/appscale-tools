@@ -144,7 +144,7 @@ class GCEAgent(BaseAgent):
   # recommended by Cassandra. AppScale will still run on these instance types,
   # but is likely to crash after a day or two of use (as Cassandra will attempt
   # to malloc ~800MB of memory, which will fail on these instance types).
-  DISALLOWED_INSTANCE_TYPES = ["n1-highcpu-2", "n1-highcpu-2-d", "f1-micro",
+  DISCOURAGED_INSTANCE_TYPES = ["n1-highcpu-2", "n1-highcpu-2-d", "f1-micro",
     "g1-small"]
 
 

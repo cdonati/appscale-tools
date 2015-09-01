@@ -1001,8 +1001,8 @@ class LocalState(object):
       AppScaleException: If the user chooses to abort.
     """
     AppScaleLogger.warn(warning)
-    confirm = raw_input("Are you sure you want to do this? (Y/N) ")
-    if confirm.lower() == 'y' or confirm.lower() == 'yes':
+    confirm = raw_input("Are you sure you want to do this? (y/N) ")
+    if confirm.lower() not in ['y', 'yes']:
       return
     else:
       raise AppScaleException(abort_message)

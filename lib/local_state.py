@@ -1003,8 +1003,6 @@ class LocalState(object):
     AppScaleLogger.warn(warning)
     confirm = raw_input("Are you sure you want to do this? (y/N) ")
     if confirm.lower() not in ['y', 'yes']:
-      return
-    else:
       raise AppScaleException(abort_message)
 
 

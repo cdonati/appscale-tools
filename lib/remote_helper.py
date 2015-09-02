@@ -290,6 +290,39 @@ class RemoteHelper(object):
       AppScaleLogger.verbose(str(exception), is_verbose)
       return False
 
+  @classmethod
+  def merge_authorized_keys(cls, host, keyname, user, is_verbose):
+    """ Adds the contents of the user's authorized_keys file to the root's
+    authorized_keys file.
+
+    Args:
+      host: A str representing the host to enable root logins on.
+      keyname: A str representing the name of the SSH keypair to login with.
+      user: A str representing the name of the user to login as.
+      is_verbose: A bool indicating if we should print the command we execute to
+        enable root login to stdout.
+    """
+    AppScaleLogger.log('Root login not enabled - enabling it now.')
+
+    create_root_keys = 'sudo touch /root/.ssh/authorized_keys'
+    cls.ssh(host, keyname, create_root_keys, is_verbose, user=user)
+
+    set_permissions = 'sudo chmod 600 /root/.ssh/authorized_keys'
+    cls.ssh(host, keyname, set_permissions, is_verbose, user=user)
+
+    temp_file = cls.ssh(host, keyname, 'mktemp', is_verbose, user=user)
+
+    merge_to_tempfile = 'sudo sort -u ~/.ssh/authorized_keys '\
+      '/root/.ssh/authorized_keys -o {}'.format(temp_file)
+    cls.ssh(host, keyname, merge_to_tempfile, is_verbose, user=user)
+
+    overwrite_root_keys = "sudo sed -n '/.*Please login/d; "\
+      "w/root/.ssh/authorized_keys' {}".format(temp_file)
+    cls.ssh(host, keyname, overwrite_root_keys, is_verbose, user=user)
+
+    remove_tempfile = 'rm -f {0}'.format(temp_file)
+    cls.ssh(host, keyname, remove_tempfile, is_verbose, user=user)
+    return
 
   @classmethod
   def enable_root_login(cls, host, keyname, infrastructure, is_verbose):
@@ -312,9 +345,8 @@ class RemoteHelper(object):
       # Google Compute Engine creates a user with the same name as the currently
       # logged-in user, so log in as that user to enable root login.
       if infrastructure == "gce":
-        AppScaleLogger.log("Root login not enabled - enabling it now.")
-        cls.ssh(host, keyname, 'sudo cp ~/.ssh/authorized_keys /root/.ssh/',
-          is_verbose, user=getpass.getuser())
+        cls.merge_authorized_keys(host, keyname, getpass.getuser(),
+          is_verbose)
         return
       else:
         raise exception
@@ -322,9 +354,7 @@ class RemoteHelper(object):
     # Amazon EC2 rejects a root login request and tells the user to log in as
     # the ubuntu user, so do that to enable root login.
     if re.search(cls.LOGIN_AS_UBUNTU_USER, output):
-      AppScaleLogger.log("Root login not enabled - enabling it now.")
-      cls.ssh(host, keyname, 'sudo cp ~/.ssh/authorized_keys /root/.ssh/',
-        is_verbose, user='ubuntu')
+      cls.merge_authorized_keys(host, keyname, 'ubuntu', is_verbose)
     else:
       AppScaleLogger.log("Root login already enabled - not re-enabling it.")
 
@@ -346,8 +376,9 @@ class RemoteHelper(object):
         representing the standard error of the remote command.
     """
     ssh_key = LocalState.get_key_path_from_name(keyname)
-    return LocalState.shell("ssh -i {0} {1} {2}@{3} ".format(ssh_key,
-      cls.SSH_OPTIONS, user, host), is_verbose, num_retries, stdin=command)
+    return LocalState.shell("ssh -F /dev/null -i {0} {1} {2}@{3} bash".format(
+      ssh_key, cls.SSH_OPTIONS, user, host),
+      is_verbose, num_retries, stdin=command)
 
 
   @classmethod
@@ -549,35 +580,15 @@ class RemoteHelper(object):
         or if any of the standard AppScale module folders do not exist.
     """
     ssh_key = LocalState.get_key_path_from_name(keyname)
-    appscale_dirs = ["lib", "AppController", "AppManager", "AppServer",
-      "AppServer_Java", "AppDashboard", "InfrastructureManager", "AppTaskQueue",
-      "XMPPReceiver"]
-    for dir_name in appscale_dirs:
-      local_path = os.path.expanduser(local_appscale_dir) + os.sep + dir_name
-      if not os.path.exists(local_path):
-        raise BadConfigurationException("The location you specified to copy " \
-          "from, {0}, doesn't contain a {1} folder.".format(local_appscale_dir,
-          local_path))
-      LocalState.shell("rsync -e 'ssh -i {0} {1}' -arv {2}/* "\
-        "root@{3}:/root/appscale/{4}".format(ssh_key, cls.SSH_OPTIONS,
-        local_path, host, dir_name), is_verbose)
-
-    # Rsync AppDB separately, as it has a lot of paths we may need to exclude
-    # (e.g., built database binaries).
-    local_app_db = os.path.expanduser(local_appscale_dir) + os.sep + "AppDB/*"
-    LocalState.shell("rsync -e 'ssh -i {0} {1}' -arv --exclude='logs/*' " \
-      "--exclude='hadoop-*' --exclude='hbase/hbase-*' " \
-      "--exclude='cassandra/cassandra/*' {2} root@{3}:/root/appscale/AppDB" \
-      .format(ssh_key, cls.SSH_OPTIONS, local_app_db, host), is_verbose)
-
-    # And rsync the firewall configuration file separately, as it's not a
-    # directory (which the above all are).
-    local_firewall = os.path.expanduser(local_appscale_dir) + os.sep + \
-      "firewall.conf"
-    LocalState.shell("rsync -e 'ssh -i {0} {1}' -arv {2} root@{3}:" \
-      "/root/appscale/firewall.conf".format(ssh_key, cls.SSH_OPTIONS,
-      local_firewall, host), is_verbose)
-
+    local_path = os.path.expanduser(local_appscale_dir)
+    if not os.path.exists(local_path):
+      raise BadConfigurationException("The location you specified to copy " \
+        "from, {0}, doesn't exist.".format(local_path))
+    LocalState.shell("rsync -e 'ssh -i {0} {1}' -arv "
+      "--exclude='AppDB/logs/*' " \
+      "--exclude='AppDB/cassandra/cassandra/*' " \
+      "{2}/* root@{3}:/root/appscale/".format(ssh_key, cls.SSH_OPTIONS,
+      local_path, host), is_verbose)
 
   @classmethod
   def copy_deployment_credentials(cls, host, options):
@@ -944,9 +955,11 @@ class RemoteHelper(object):
       is_verbose: A bool that indicates if we should print the stop commands we
         exec to stdout.
     """
-    cls.ssh(host, keyname, 'service appscale-controller stop', is_verbose)
+    stop_command = 'service appscale-controller stop ; '\
+      'ruby /root/appscale/AppController/terminate.rb'
+    cls.ssh(host, keyname, stop_command, is_verbose)
     time.sleep(5)
-    cls.ssh(host, keyname, 'service appscale-controller stop', is_verbose)
+    cls.ssh(host, keyname, stop_command, is_verbose)
 
 
   @classmethod

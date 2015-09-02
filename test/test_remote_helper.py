@@ -182,23 +182,51 @@ class TestRemoteHelper(unittest.TestCase):
 
 
   def test_start_head_node_in_cloud_but_ami_not_appscale(self):
-    # mock out our attempts to find /etc/appscale and presume it doesn't exist
+    # Mock out our attempts to find /etc/appscale and presume it doesn't exist.
     local_state = flexmock(LocalState)
-    # mock out our attempts to enable the root login. 
+
+    # Mock out our attempts to enable the root login.
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin='sudo touch /root/.ssh/authorized_keys').and_return()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin='sudo chmod 600 /root/.ssh/authorized_keys').and_return()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5, stdin='mktemp').and_return()
+
     local_state.should_receive('shell') \
       .with_args(re.compile('^ssh'), False, 5,
         stdin='ls') \
       .and_return(RemoteHelper.LOGIN_AS_UBUNTU_USER)
-    local_state.should_receive('shell')\
-      .with_args(re.compile('^ssh'),False,5,stdin=re.compile('^sudo cp'))\
-      .and_return().ordered()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin=re.compile(
+        'sudo sort -u ~/.ssh/authorized_keys /root/.ssh/authorized_keys -o '
+      )
+    ).and_return()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin=re.compile(
+        'sudo sed -n '
+        '\'\/\.\*Please login\/d; w\/root\/\.ssh\/authorized_keys\' '
+      )
+    ).and_return()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5, stdin=re.compile('rm -f ')
+    ).and_return()
 
     local_state.should_receive('shell')\
       .with_args(re.compile('^ssh'),False,5,\
         stdin=re.compile('ls /etc/appscale'))\
       .and_raise(ShellException).ordered()
 
-    # check that the cleanup routine is called on error
+    # Check that the cleanup routine is called on error.
     flexmock(AppScaleTools).should_receive('terminate_instances')\
       .and_return().ordered()
 
@@ -208,16 +236,43 @@ class TestRemoteHelper(unittest.TestCase):
 
   def test_start_head_node_in_cloud_but_ami_wrong_version(self):
     local_state = flexmock(LocalState)
-    # mock out our attempts to enable the root login. 
+    # mock out our attempts to enable the root login.
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin='sudo touch /root/.ssh/authorized_keys').and_return()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin='sudo chmod 600 /root/.ssh/authorized_keys').and_return()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5, stdin='mktemp').and_return()
+
     local_state.should_receive('shell') \
       .with_args(re.compile('^ssh'), False, 5,
         stdin='ls') \
       .and_return(RemoteHelper.LOGIN_AS_UBUNTU_USER)
-    # mock out our attempts to find /etc/appscale and presume it does exist
-    local_state.should_receive('shell') \
-      .with_args(re.compile('^ssh'), False, 5, stdin=re.compile('^sudo cp')) \
-      .and_return()
 
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin=re.compile(
+        'sudo sort -u ~/.ssh/authorized_keys /root/.ssh/authorized_keys -o '
+      )
+    ).and_return()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin=re.compile(
+        'sudo sed -n '
+        '\'\/\.\*Please login\/d; w\/root\/\.ssh\/authorized_keys\' '
+      )
+    ).and_return()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5, stdin=re.compile('rm -f ')
+    ).and_return()
+
+    # mock out our attempts to find /etc/appscale and presume it does exist
     local_state.should_receive('shell') \
       .with_args(re.compile('^ssh'), False, 5,
         stdin=re.compile('ls /etc/appscale')) \
@@ -241,17 +296,43 @@ class TestRemoteHelper(unittest.TestCase):
   def test_start_head_node_in_cloud_but_using_unsupported_database(self):
     local_state = flexmock(LocalState)
 
-    # mock out our attempts to enable the root login. 
+    # Mock out our attempts to enable the root login.
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin='sudo touch /root/.ssh/authorized_keys').and_return()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin='sudo chmod 600 /root/.ssh/authorized_keys').and_return()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5, stdin='mktemp').and_return()
+
     local_state.should_receive('shell') \
       .with_args(re.compile('^ssh'), False, 5,
         stdin='ls') \
       .and_return(RemoteHelper.LOGIN_AS_UBUNTU_USER)
 
-    # mock out our attempts to find /etc/appscale and presume it does exist
-    local_state.should_receive('shell') \
-      .with_args(re.compile('^ssh'), False, 5, stdin=re.compile('^sudo cp')) \
-      .and_return().ordered()
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin=re.compile(
+        'sudo sort -u ~/.ssh/authorized_keys /root/.ssh/authorized_keys -o '
+      )
+    ).and_return()
 
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5,
+      stdin=re.compile(
+        'sudo sed -n '
+        '\'\/\.\*Please login\/d; w\/root\/\.ssh\/authorized_keys\' '
+      )
+    ).and_return()
+
+    local_state.should_receive('shell').with_args(
+      re.compile('ssh'), False, 5, stdin=re.compile('rm -f ')
+    ).and_return()
+
+    # mock out our attempts to find /etc/appscale and presume it does exist
     local_state.should_receive('shell') \
       .with_args(re.compile('^ssh'), False, 5,
         stdin=re.compile('ls /etc/appscale')) \
@@ -284,8 +365,8 @@ class TestRemoteHelper(unittest.TestCase):
     # if the user specifies that we should copy from a directory that doesn't
     # exist, we should throw up and die
     flexmock(os.path)
-    os.path.should_receive('exists').with_args('/tmp/booscale-local/lib')\
-      .and_return(False)
+    os.path.should_receive('exists').with_args('/tmp/booscale-local').\
+      and_return(False)
     self.assertRaises(BadConfigurationException, RemoteHelper.rsync_files,
       'public1', 'booscale', '/tmp/booscale-local', False)
 
@@ -294,8 +375,8 @@ class TestRemoteHelper(unittest.TestCase):
     # if the user specifies that we should copy from a directory that does
     # exist, and has all the right directories in it, we should succeed
     flexmock(os.path)
-    os.path.should_receive('exists').with_args(re.compile(
-      '/tmp/booscale-local/')).and_return(True)
+    os.path.should_receive('exists').with_args('/tmp/booscale-local').\
+      and_return(True)
 
     # assume the rsyncs succeed
     local_state = flexmock(LocalState)

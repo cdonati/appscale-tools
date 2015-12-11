@@ -6,6 +6,7 @@ interact with Google Compute Engine.
 """
 
 # General-purpose Python library imports
+import argparse
 import datetime
 import json
 import os.path
@@ -256,6 +257,7 @@ class GCEAgent(BaseAgent):
       if not metadata:
         return False, ""
 
+      all_ssh_keys = ""
       for item in metadata:
         if item['key'] != 'sshKeys':
           continue
@@ -1087,7 +1089,8 @@ class GCEAgent(BaseAgent):
     credentials = storage.get()
 
     if credentials is None or credentials.invalid:
-      credentials = oauth2client.tools.run(flow, storage)
+      flags = oauth2client.tools.argparser.parse_args(args=[])
+      credentials = oauth2client.tools.run_flow(flow, storage, flags)
 
     # Build the service
     return discovery.build('compute', self.API_VERSION), credentials

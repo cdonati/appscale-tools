@@ -43,12 +43,10 @@ installpylibs()
 {
   pip_wrapper termcolor
   pip_wrapper SOAPpy
-  pip_wrapper pyyaml
   pip_wrapper boto
   pip_wrapper oauth2client
   pip_wrapper google-api-python-client
   pip_wrapper argparse
-  pip_wrapper python-gflags
 }
 
 installappscaletools()

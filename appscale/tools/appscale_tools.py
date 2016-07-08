@@ -5,6 +5,7 @@
 import datetime
 import getpass
 import json
+import logging
 import os
 import re
 import shutil
@@ -720,8 +721,7 @@ class AppScaleTools(object):
         upgrade_version_available: The latest version available to upgrade to.
         node_layout: A NodeLayout object for the deployment.
     """
-    ts = time.time()
-    timestamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H:%M:%S')
+    timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
 
     db_ips = [node.private_ip for node in node_layout.nodes
               if node.is_role('db_master') or node.is_role('db_slave')]
@@ -770,7 +770,8 @@ class AppScaleTools(object):
           AppScaleLogger.warn("For more information refer to " + upgrade_status_file
             + " by logging into your head node.")
     except ShellException:
-      AppScaleLogger.warn("Error executing upgrade script.")
+      logging.exception('Error executing upgrade script')
+      # AppScaleLogger.warn("Error executing upgrade script.")
 
   @classmethod
   def get_ip_str_for_command(cls, ip_list):

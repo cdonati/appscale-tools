@@ -730,10 +730,8 @@ class AppScaleTools(object):
 
     zk_ips_str = cls.get_ip_str_for_command(zk_ips)
     db_ips_str = cls.get_ip_str_for_command(db_ips)
-    upgrade_script_command = """
-      {script} {version} {keyname} {timestamp} --master {db_master}
-        --zookeeper {zk_ips} --database {db_ips}
-    """.format(
+    upgrade_script_command = '{script} {version} {keyname} {timestamp} '\
+      '--master {db_master} --zookeeper {zk_ips} --database {db_ips}'.format(
       script=cls.UPGRADE_SCRIPT,
       version=upgrade_version_available,
       keyname=options.keyname,

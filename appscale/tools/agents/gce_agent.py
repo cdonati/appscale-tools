@@ -11,6 +11,7 @@ import os.path
 import pwd
 import shutil
 import time
+import threading
 import uuid
 
 
@@ -725,6 +726,16 @@ class GCEAgent(BaseAgent):
       project_url, parameters[self.PARAM_ZONE], disk_name)
     return disk_url
 
+  def _insert_instance(self, service, credentials, project, instance, zone,
+                       verbose):
+    http = httplib2.Http()
+    auth_http = credentials.authorize(http)
+    request = service.instances().insert(
+      project=project, body=instance, zone=zone)
+    response = request.execute(http=auth_http)
+    AppScaleLogger.verbose(str(response), verbose)
+    self.ensure_operation_succeeds(service, auth_http, response, project)
+
   def run_instances(self, count, parameters, security_configured):
     """ Starts 'count' instances in Google Compute Engine, and returns once they
     have been started.
@@ -765,9 +776,10 @@ class GCEAgent(BaseAgent):
     network_url = '{0}/global/networks/{1}'.format(project_url, group)
 
     # Construct the request body
+    threads = []
     for index in range(count):
       disk_url = self.create_scratch_disk(parameters)
-      instances = {
+      instance = {
         # Truncate the name down to the first 62 characters, since GCE doesn't
         # let us use arbitrarily long instance names.
         'name': '{group}-{uuid}'.format(group=group, uuid=uuid.uuid4())[:62],
@@ -790,18 +802,16 @@ class GCEAgent(BaseAgent):
              'scopes': [self.GCE_SCOPE]
         }]
       }
-
-      # Create the instance
       gce_service, credentials = self.open_connection(parameters)
-      http = httplib2.Http()
-      auth_http = credentials.authorize(http)
-      request = gce_service.instances().insert(
-           project=project_id, body=instances, zone=zone)
-      response = request.execute(http=auth_http)
-      AppScaleLogger.verbose(str(response), parameters[self.PARAM_VERBOSE])
-      self.ensure_operation_succeeds(gce_service, auth_http, response,
-        parameters[self.PARAM_PROJECT])
-    
+      args = (gce_service, credentials, project_id, instance, zone,
+              parameters[self.PARAM_VERBOSE])
+      thread = threading.Thread(target=self._insert_instance, args=args)
+      threads.append(thread)
+      thread.start()
+
+    for thread in threads:
+      thread.join()
+
     instance_ids = []
     public_ips = []
     private_ips = []
@@ -1145,7 +1155,8 @@ class GCEAgent(BaseAgent):
     credentials = storage.get()
 
     if credentials is None or credentials.invalid:
-      flags = oauth2client.tools.argparser.parse_args(args=[])
+      flags = oauth2client.tools.argparser.parse_args(
+        args=['--noauth_local_webserver'])
       credentials = oauth2client.tools.run_flow(flow, storage, flags)
 
     # Build the service

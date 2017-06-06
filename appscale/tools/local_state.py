@@ -497,6 +497,7 @@ class LocalState(object):
     try:
       with open(cls.get_locations_json_location(keyname), 'r') as file_handle:
         file_contents = json.loads(file_handle.read())
+        AppScaleLogger.log('file_contents: {}'.format(file_contents))
         if isinstance(file_contents, list):
           cls.upgrade_json_file(keyname)
           file_handle.seek(0)

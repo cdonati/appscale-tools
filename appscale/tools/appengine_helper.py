@@ -6,6 +6,7 @@ import os
 import socket
 import re
 import yaml
+from xml.etree import ElementTree
 
 
 # AppScale-specific imports
@@ -260,6 +261,32 @@ class AppEngineHelper(object):
     if not isinstance(threadsafe, bool):
       raise AppEngineConfigException('"threadsafe" must be a boolean value.')
     return threadsafe
+
+  @classmethod
+  def get_service_id(cls, app_dir):
+    app_config_file = cls.get_config_file_from_dir(app_dir)
+    if cls.FILE_IS_YAML.search(app_config_file):
+      yaml_contents = yaml.safe_load(cls.read_file(app_config_file))
+      return yaml_contents.get('module', 'default')
+    else:
+      root = ElementTree.parse(app_config_file).getroot()
+      for child in root:
+        if child.tag.endswith('module'):
+          return child.text
+      return 'default'
+
+  @classmethod
+  def get_version_id(cls, app_dir):
+    app_config_file = cls.get_config_file_from_dir(app_dir)
+    if cls.FILE_IS_YAML.search(app_config_file):
+      yaml_contents = yaml.safe_load(cls.read_file(app_config_file))
+      return yaml_contents.get('version', 'default')
+    else:
+      root = ElementTree.parse(app_config_file).getroot()
+      for child in root:
+        if child.tag.endswith('version'):
+          return child.text
+      return 'default'
 
   @classmethod
   def get_config_file_from_dir(cls, app_dir):

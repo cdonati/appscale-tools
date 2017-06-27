@@ -912,9 +912,13 @@ class AppScaleTools(object):
     remote_file_path = RemoteHelper.copy_app_to_host(file_location,
       options.keyname, options.verbose, extras)
 
-    AppScaleLogger.log('Deploying project: {}'.format(app_id))
+    service_id = AppEngineHelper.get_service_id(file_location)
+    version_id = AppEngineHelper.get_version_id(file_location)
+    AppScaleLogger.log(
+      'Deploying {}/{}/{}'.format(app_id, service_id, version_id))
     operation_id = admin_client.create_version(
-      app_id, username, remote_file_path, app_language, threadsafe)
+      app_id, service_id, version_id, username, remote_file_path, app_language,
+      threadsafe)
 
     # now that we've told the AppController to start our app, find out what port
     # the app is running on and wait for it to start serving

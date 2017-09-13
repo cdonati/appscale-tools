@@ -252,7 +252,9 @@ class AppScaleTools(object):
       ip: next((n for n in cluster_stats if n["private_ip"] == ip), None)
       for ip in all_private_ips
     }
+    AppScaleLogger.log('cluster_stats: {}'.format(cluster_stats))
     apps_dict = next((n["apps"] for n in cluster_stats if n["apps"]), {})
+    AppScaleLogger.log('apps_dict: {}'.format(apps_dict))
     services = [ServiceInfo(key.split('_')[0], key.split('_')[1], app_info)
                 for key, app_info in apps_dict.iteritems()]
     nodes = [NodeStats(ip, node) for ip, node in node_stats.iteritems() if node]

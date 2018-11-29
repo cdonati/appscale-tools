@@ -18,7 +18,6 @@ import urllib2
 import uuid
 from collections import Counter
 from itertools import chain
-from xml.etree import ElementTree
 
 import yaml
 from SOAPpy import faultType
@@ -183,10 +182,9 @@ class AppScaleTools(object):
 
     path = LocalState.LOCAL_APPSCALE_PATH + options.keyname
     if options.add_to_existing:
-      public_key = path + ".pub"
       private_key = path
     else:
-      public_key, private_key = LocalState.generate_rsa_key(options.keyname,
+      _, private_key = LocalState.generate_rsa_key(options.keyname,
         options.verbose)
 
     if options.auto:
@@ -603,7 +601,7 @@ class AppScaleTools(object):
     """
     if not options.confirm:
       response = raw_input(
-        'Are you sure you want to remove this application? (y/N) ')
+        "Are you sure you want to delete this project's services? (y/N) ")
       if response.lower() not in ['y', 'yes']:
         raise AppScaleException("Cancelled application removal.")
 
@@ -611,27 +609,39 @@ class AppScaleTools(object):
     secret = LocalState.get_secret_key(options.keyname)
     admin_client = AdminClient(login_host, secret)
 
-    admin_client.delete_project(options.project_id)
-
-    deadline = time.time() + cls.MAX_OPERATION_TIME
-    while True:
-      if time.time() > deadline:
-        raise AppScaleException('The undeploy operation took too long.')
-      found_project = False
-      projects = admin_client.list_projects()['projects']
-      for project in projects:
-        if options.project_id == project['projectId']:
-          found_project = True
-          break
-
-      if found_project:
-        time.sleep(1)
-        continue
-      else:
-        break
+    for service_id in admin_client.list_services(options.project_id):
+      AppScaleLogger.log('Deleting service: {}'.format(service_id))
+      cls._remove_service(admin_client, options.project_id, service_id)
 
     AppScaleLogger.success('Done shutting down {}.'.format(options.project_id))
 
+  @classmethod
+  def _remove_service(cls, admin_client, project_id, service_id):
+    """ Deletes a project's service.
+
+    Args:
+      admin_client: An AdminClient object.
+      project_id: A string specifying a project ID.
+      service_id: A string specifying a service ID.
+    Raises:
+      AppScaleException if the operation times out.
+      AdminError: If there is a problem making an Admin API call.
+    """
+    operation_id = admin_client.delete_service(project_id, service_id)
+    deadline = time.time() + cls.MAX_OPERATION_TIME
+    while True:
+      if time.time() > deadline:
+        raise AppScaleException('The service delete operation timed out')
+
+      operation = admin_client.get_operation(project_id, operation_id)
+      if not operation['done']:
+        time.sleep(1)
+        continue
+
+      if 'error' in operation:
+        raise AppScaleException(operation['error']['message'])
+
+      break
 
   @classmethod
   def remove_service(cls, options):
@@ -650,24 +660,9 @@ class AppScaleTools(object):
     login_host = LocalState.get_login_host(options.keyname)
     secret = LocalState.get_secret_key(options.keyname)
     admin_client = AdminClient(login_host, secret)
-    operation_id = admin_client.delete_service(options.project_id,
-                                                options.service_id)
-    deadline = time.time() + cls.MAX_OPERATION_TIME
-    while True:
-      if time.time() > deadline:
-        raise AppScaleException('The undeploy operation took too long.')
-      operation = admin_client.get_operation(options.project_id, operation_id)
-      if not operation['done']:
-        time.sleep(1)
-        continue
-
-      if 'error' in operation:
-        raise AppScaleException(operation['error']['message'])
-      break
-
+    cls._remove_service(admin_client, options.project_id, options.service_id)
     AppScaleLogger.success('Done shutting down service {} for {}.'.format(
       options.project_id, options.service_id))
-
 
   @classmethod
   def reset_password(cls, options):
@@ -742,8 +737,11 @@ class AppScaleTools(object):
     """
     LocalState.make_appscale_directory()
     LocalState.ensure_appscale_isnt_running(options.keyname, options.force)
+    node_layout = NodeLayout(options)
+
     if options.infrastructure:
-      if not options.disks and not options.test and not options.force:
+      if (not options.test and not options.force and
+          not (options.disks or node_layout.are_disks_used())):
         LocalState.ensure_user_wants_to_run_without_disks()
 
     reduced_version = '.'.join(x for x in APPSCALE_VERSION.split('.')[:2])
@@ -752,8 +750,6 @@ class AppScaleTools(object):
     my_id = str(uuid.uuid4())
     AppScaleLogger.remote_log_tools_state(options, my_id, "started",
       APPSCALE_VERSION)
-
-    node_layout = NodeLayout(options)
 
     head_node = node_layout.head_node()
     # Start VMs in cloud via cloud agent.
@@ -966,7 +962,7 @@ class AppScaleTools(object):
       version.project_id = options.project
 
     if version.project_id is None:
-      if version.configuration_type == 'app.yaml':
+      if version.config_type == 'app.yaml':
         message = 'Specify --project or define "application" in your app.yaml'
       else:
         message = 'Define "application" in your appengine-web.xml'
@@ -1181,7 +1177,7 @@ class AppScaleTools(object):
       AppScaleLogger.log(
         'Checking if an update is available for appscale-tools')
       latest_tools = latest_tools_version()
-    except:
+    except (URLError, ValueError):
       # Prompt the user if version metadata can't be fetched.
       if not options.test:
         response = raw_input(
